@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shopify Orders Sync</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #161a21;
+      --panel-2: #1d222b;
+      --border: #262c37;
+      --text: #e6e9ef;
+      --muted: #8a93a6;
+      --accent: #5eead4;
+      --accent-2: #38bdf8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      padding: 18px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--panel);
+    }
+    header h1 { margin: 0; font-size: 18px; letter-spacing: 0.2px; }
+    header .status { color: var(--muted); font-size: 12px; }
+    main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+    .grid { display: grid; gap: 16px; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+    .kpi { font-size: 32px; font-weight: 600; letter-spacing: -0.5px; }
+    .kpi .unit { font-size: 14px; color: var(--muted); margin-left: 6px; }
+    .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+    input[type=date], input[type=text] {
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 6px; font: inherit; min-width: 160px;
+    }
+    button {
+      background: var(--accent); color: #032015; border: 0; padding: 9px 16px;
+      border-radius: 6px; font: 600 13px/1 inherit; cursor: pointer;
+    }
+    button.secondary {
+      background: transparent; color: var(--accent-2); border: 1px solid var(--accent-2);
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: 0; }
+
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .pill.pending { background: #3a2e0e; color: var(--warn); }
+    .pill.running { background: #0e2a3a; color: var(--accent-2); }
+    .pill.completed { background: #0e3a23; color: var(--ok); }
+    .pill.failed { background: #3a0e0e; color: var(--err); }
+
+    .files { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .files a { color: var(--accent-2); text-decoration: none; font-size: 12px; }
+    .files a:hover { text-decoration: underline; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--panel-2);
+      border: 1px solid var(--border); border-left: 3px solid var(--accent);
+      padding: 12px 16px; border-radius: 8px; max-width: 340px;
+      opacity: 0; transition: opacity 0.2s ease; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+      background: var(--muted); margin-right: 6px; vertical-align: middle; }
+    .dot.live { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+
+    code.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+      color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Shopify Orders Sync</h1>
+    <div class="status">
+      <span id="liveDot" class="dot"></span>
+      <span id="liveText">connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid grid-3" style="margin-bottom: 16px;">
+      <div class="card">
+        <h2>Orders pulled</h2>
+        <div class="kpi"><span id="totalOrders">—</span></div>
+        <div class="meta" id="ingestMeta">no data yet</div>
+      </div>
+      <div class="card">
+        <h2>Date coverage</h2>
+        <div style="font-size: 14px;">
+          <div><span class="meta">First</span> <span id="firstOrder">—</span></div>
+          <div style="margin-top: 4px;"><span class="meta">Last</span> <span id="lastOrder">—</span></div>
+        </div>
+        <div class="meta" id="windowMeta" style="margin-top: 10px;"></div>
+      </div>
+      <div class="card">
+        <h2>Puller state</h2>
+        <div class="kpi" style="font-size: 22px;"><span id="phase">—</span></div>
+        <div class="meta" id="phaseMeta">awaiting first sweep</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom: 16px;">
+      <h2>Export to Excel</h2>
+      <p class="meta" style="margin-top: 0;">
+        Each file holds up to <strong id="rowsPerFile">100,000</strong> rows.
+        80,000 orders → 1 file. 1,10,000 → 2 files (1,00,000 + 10,000). 10,00,000 → 10 files.
+      </p>
+      <div class="row" style="margin-top: 10px;">
+        <div>
+          <label for="startDate">Start date (optional)</label>
+          <input type="date" id="startDate">
+        </div>
+        <div>
+          <label for="endDate">End date (optional)</label>
+          <input type="date" id="endDate">
+        </div>
+        <div style="align-self: end;">
+          <button id="exportBtn">Generate export</button>
+        </div>
+        <div style="align-self: end;">
+          <button class="secondary" id="refreshBtn">Refresh now</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Recent exports</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Status</th>
+            <th>Requested</th>
+            <th>Rows</th>
+            <th>Files</th>
+          </tr>
+        </thead>
+        <tbody id="jobsBody">
+          <tr><td colspan="5" class="meta">no exports yet</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+const fmt = new Intl.NumberFormat("en-IN");
+const dt = (s) => s ? new Date(s).toLocaleString() : "—";
+
+let pollHandle = null;
+
+function setLive(ok, text) {
+  document.getElementById("liveDot").classList.toggle("live", ok);
+  document.getElementById("liveText").textContent = text;
+}
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 3500);
+}
+
+async function fetchJSON(url, opts = {}) {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(`${url} → ${r.status}`);
+  return r.json();
+}
+
+async function refreshStats() {
+  try {
+    const s = await fetchJSON("/stats");
+    document.getElementById("totalOrders").textContent = fmt.format(s.orders.total || 0);
+    document.getElementById("firstOrder").textContent = dt(s.orders.first_order);
+    document.getElementById("lastOrder").textContent = dt(s.orders.last_order);
+    document.getElementById("ingestMeta").textContent =
+      s.orders.last_ingest ? `last ingest ${dt(s.orders.last_ingest)}` : "no data yet";
+
+    const phase = s.puller.state?.phase || (s.puller.backfill_done ? "tail" : "starting");
+    document.getElementById("phase").textContent = phase;
+    const proc = s.puller.state?.processed;
+    const last = s.puller.state?.last_order_date;
+    document.getElementById("phaseMeta").textContent =
+      [proc != null ? `${fmt.format(proc)} processed` : null,
+       last ? `last seen ${dt(last)}` : null].filter(Boolean).join(" · ") || "—";
+
+    setLive(true, "live");
+  } catch (e) {
+    setLive(false, "disconnected");
+  }
+}
+
+async function refreshJobs() {
+  try {
+    const r = await fetchJSON("/exports?limit=20");
+    const tbody = document.getElementById("jobsBody");
+    if (!r.jobs.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="meta">no exports yet</td></tr>`;
+      return;
+    }
+    const rows = await Promise.all(r.jobs.map(async (j) => {
+      let filesHtml = "—";
+      if (j.status === "completed" && j.file_count) {
+        const full = await fetchJSON(`/exports/${j.job_id}`).catch(() => null);
+        if (full?.files?.length) {
+          filesHtml = `<div class="files">` + full.files.map(f =>
+            `<a href="/exports/${j.job_id}/files/${f.filename}" download>${f.filename} · ${fmt.format(f.rows)} rows</a>`
+          ).join("") + `</div>`;
+        }
+      }
+      return `<tr>
+        <td><code class="mono">${j.job_id}</code></td>
+        <td><span class="pill ${j.status}">${j.status}</span></td>
+        <td>${dt(j.requested_at)}</td>
+        <td>${j.total_rows != null ? fmt.format(j.total_rows) : "—"}</td>
+        <td>${j.file_count != null ? j.file_count : "—"}${filesHtml === "—" ? "" : filesHtml}</td>
+      </tr>`;
+    }));
+    tbody.innerHTML = rows.join("");
+  } catch (_e) {
+    /* keep prior render on transient failures */
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([refreshStats(), refreshJobs()]);
+}
+
+document.getElementById("exportBtn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const body = {};
+    const sd = document.getElementById("startDate").value;
+    const ed = document.getElementById("endDate").value;
+    if (sd) body.start_date = sd + "T00:00:00Z";
+    if (ed) body.end_date = ed + "T23:59:59Z";
+    const r = await fetchJSON("/exports", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    toast(`Export job ${r.job_id} queued.`);
+    await refreshJobs();
+  } catch (err) {
+    toast(`Export failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("refreshBtn").addEventListener("click", refreshAll);
+
+refreshAll();
+pollHandle = setInterval(refreshAll, 5000);
+</script>
+</body>
+</html>
