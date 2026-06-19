@@ -92,7 +92,7 @@ class ShopifyClient:
 
     async def __aenter__(self) -> "ShopifyClient":
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=10.0),
+            timeout=httpx.Timeout(self.s.shopify_http_timeout_sec, connect=10.0),
             headers={
                 "X-Shopify-Access-Token": self.s.shopify_access_token,
                 "Content-Type": "application/json",

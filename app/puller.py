@@ -62,13 +62,15 @@ def _flatten_order(o: dict[str, Any]) -> tuple:
 
     customer = o.get("customer") or {}
     money = ((o.get("currentTotalPriceSet") or {}).get("shopMoney")) or {}
+    s = get_settings()
+    email = o.get("email") or s.customer_dummy_email
 
     return (
         o["id"],                                              # shopify_order_id (gid)
         o.get("name"),                                        # order_number e.g. "#1001"
         _to_dt(o.get("createdAt")),                           # order_date
         _to_dt(o.get("processedAt")),                         # processed_at
-        o.get("email"),                                       # email
+        email,                                                # email (with dummy fallback)
         o.get("phone"),                                       # phone
         customer.get("phone"),                                # customer_phone
         customer.get("firstName"),                            # customer_first_name

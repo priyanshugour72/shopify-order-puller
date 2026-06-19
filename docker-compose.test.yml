@@ -1,0 +1,7 @@
+# Override used by the local smoke-test only. Drops host-port bindings so we
+# don't collide with anything the developer already runs on 5432 / 6379.
+services:
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []

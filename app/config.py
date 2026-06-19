@@ -9,16 +9,32 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Shopify
-    shopify_shop: str
+    # -- Shopify identity --------------------------------------------------
+    # Shop *.myshopify.com handle (no protocol).
+    shopify_store_url: str
+
+    # REQUIRED. Admin GraphQL access token (`shpat_...`).
     shopify_access_token: str
+
+    # Shopify App API key / secret. Not used for the GraphQL call itself,
+    # but kept for HMAC verification on future webhook endpoints.
+    shopify_api_key: Optional[str] = None
+    shopify_api_secret: Optional[str] = None
+
     shopify_api_version: str = "2025-01"
+    shopify_http_timeout_sec: int = 30
+
+    # -- Backfill window ---------------------------------------------------
     shopify_start_date: Optional[str] = None
     shopify_end_date: str = "2026-07-31T23:59:59Z"
     shopify_page_size: int = 250
     shopify_cost_safety_multiplier: float = 2.0
 
-    # Postgres
+    # -- Misc --------------------------------------------------------------
+    # Email substituted when Shopify returns null for an order's email.
+    customer_dummy_email: str = "noemail@customer.internal"
+
+    # -- Postgres ----------------------------------------------------------
     postgres_host: str
     postgres_port: int = 5432
     postgres_db: str
@@ -26,24 +42,23 @@ class Settings(BaseSettings):
     postgres_password: str
     postgres_sslmode: str = "disable"
 
-    # Redis
+    # -- Redis -------------------------------------------------------------
     redis_url: str = "redis://redis:6379/0"
 
-    # Excel
+    # -- Excel export ------------------------------------------------------
     excel_rows_per_file: int = 100_000
     export_dir: str = "/data/exports"
 
-    # API
+    # -- API ---------------------------------------------------------------
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
-    # Logging
     log_level: str = "INFO"
 
     @property
     def shopify_graphql_url(self) -> str:
         return (
-            f"https://{self.shopify_shop}/admin/api/"
+            f"https://{self.shopify_store_url}/admin/api/"
             f"{self.shopify_api_version}/graphql.json"
         )
 

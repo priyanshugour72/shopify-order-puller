@@ -19,8 +19,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # AOF on so the puller's cursor / state survives container restart.
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
+    volumes:
+      - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -57,4 +61,5 @@ services:
 
 volumes:
   pgdata:
+  redisdata:
   exports:
